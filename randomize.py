@@ -3,7 +3,6 @@ import io
 import json
 import os
 import random
-import sys
 import time
 import zipfile
 
@@ -85,8 +84,8 @@ zip.writestr(
 )
 # SethBling please use argparse
 zip.writestr(
-    "data/{}/functions/reset.mcfunction".format(datapack_name),
-    'tellraw @a ["",{"text":"Loot table randomizer by SethBling","color":"green"}]',
+    "data/" + datapack_name + "/functions/reset.mcfunction",
+    'tellraw @a ["",{"text":"Loot table randomizer originally by SethBling, modified by AtticusTG and vpcuitis","color":"blue"}]',
 )
 
 zip.close()
@@ -95,7 +94,7 @@ with open(datapack_filename, "wb") as file:
     file.write(zipbytes.getvalue())
 
 # Tada, we're done
-print('Created datapack "{}"'.format(datapack_filename))
+print("Created datapack " + datapack_filename)
 
 # This is Atticus testing out github
 # Test post please ignore
