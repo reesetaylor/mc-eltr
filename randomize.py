@@ -107,12 +107,13 @@ def writeLootTable(lootTable, filename):
     # get the loot table that will be written to the filename
     lootTable = vanillaLootTables[lootTable]
     # write it to the in-memory datapack zip
-    datapack.writestr((zipPath + filename), lootTable)
+    datapack.writestr((zipPath + "/" + filename), lootTable)
 
 
 # the minecraft.jar file
 MCJar = getMCJar()
 # location of the loot tables inside the .jar
+# not a Path object because of complications with filename.startswith
 zipPath = "data/minecraft/loot_tables/blocks"
 (vanillaLootTables, remainingLootTables) = readLootTables(MCJar)
 
