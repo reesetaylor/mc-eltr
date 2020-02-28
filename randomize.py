@@ -1,7 +1,10 @@
+#!/usr/bin/python3
 import argparse
 import io
 import json
+import sys
 import os
+from pathlib import Path
 import random
 import time
 import zipfile
@@ -15,86 +18,147 @@ parser.add_argument(
     help="Integer seed for the randomizer. Defaults to current timestamp.",
     default=time.time(),
 )
+parser.add_argument(
+    "-j",
+    "--jar",
+    help="Specify the location of the minecraft.jar to generate the datapack from.",
+)
+
 args = parser.parse_args()
+
+# message to print if automatically finding the jar fails
+jarNotFound = (
+    "Please specify the location of the minecraft.jar using the -j option e.g.\n"
+    + parser.prog
+    + " -j "
+    + str(Path.home())
+    + "/.minecraft/bin/minecraft.jar"
+)
+
+# get the path of the Minecraft folder
+def getMCFolder():
+    # attempt to set the location of minecraft.jar
+    # windows
+    if sys.platform == "win32":
+        MCFolder = Path(os.getenv("APPDATA")) / ".minecraft"
+    # mac
+    elif sys.platform == "darwin":
+        MCFolder = Path.home() / "Library" / "Application Support" / "minecraft"
+        pass
+    # linux/other
+    else:
+        print(
+            "Automatically finding minecraft.jar is only implemented for windows and mac.\n"
+            + jarNotFound
+        )
+        exit()
+    if not MCFolder.exists():
+        print(
+            "Did not find Minecraft folder at the expected location ("
+            + str(MCFolder)
+            + ")\n"
+            + jarNotFound
+        )
+        exit()
+    else:
+        return MCFolder
+
+
+MCFolder = getMCFolder()
+
+# get a zip file object of minecraft.jar
+def getMCJar():
+    if args.jar is not None:
+        try:
+            MCJar = zipfile.ZipFile(args.jar)
+        except FileNotFoundError:
+            print("Cannot find the specifified minecraft.jar file")
+            exit()
+        return MCJar
+    else:
+        # most up-to-date version is sorted to the start of the list
+        versions = sorted(os.listdir(MCFolder / "versions"))
+        version = versions[0]
+        print("Found Minecraft version " + version)
+        MCJar = zipfile.ZipFile(MCFolder / "versions" / version / (version + ".jar"))
+        return MCJar
+
+
+# reads the loot tables from the .jar into memory
+def readLootTables(zipFile):
+    # a dictionary that stores the contents of each loot table with its filename as the key
+    vanillaLootTables = {}
+    # a just-for-fun variable
+    blockCount = 0
+    for filename in zipFile.namelist():
+        if filename.startswith(zipPath):
+            contents = zipFile.open(filename).read()
+            vanillaLootTables[Path(filename).name] = contents
+            blockCount += 1
+    zipFile.close()
+    # loot tables that remain to be randomized which at the start is all of them
+    remainingLootTables = list(vanillaLootTables.keys())
+    print("Randomizing " + str(blockCount) + " blocks")
+    return (vanillaLootTables, remainingLootTables)
+
+
+# assign a lootTable to a filename in the datapack
+def writeLootTable(lootTable, filename):
+    # get the loot table that will be written to the filename
+    lootTable = vanillaLootTables[lootTable]
+    # write it to the in-memory datapack zip
+    datapack.writestr((zipPath + filename), lootTable)
+
+
+# the minecraft.jar file
+MCJar = getMCJar()
+# location of the loot tables inside the .jar
+zipPath = "data/minecraft/loot_tables/blocks"
+(vanillaLootTables, remainingLootTables) = readLootTables(MCJar)
+
+print("Generating datapack...")
 
 # set datapack information
 datapack_name = "random_loot_" + str(args.seed)
 datapack_filename = datapack_name + ".zip"
 datapack_desc = "Loot table randomizer, Seed: " + str(args.seed)
 
-# seed RNG
-random.seed(args.seed)
+# anything we write to datapack will be saved into dpBytes
+dpBytes = io.BytesIO()
+datapack = zipfile.ZipFile(dpBytes, "w", zipfile.ZIP_DEFLATED)
 
-print("Generating datapack...")
-
-# Actual stuff happening now
-# file_list is the complete list of files from loot_tables
-file_list = []
-# remaining will be a list of files that need to be moved around
-remaining = []
-
-# Create a list of every file in loot_table, and store that list into both file_list and remaining
-for dirpath, dirnames, filenames in os.walk("loot_tables"):
-    for filename in filenames:
-        file_list.append(os.path.join(dirpath, filename))
-        remaining.append(os.path.join(dirpath, filename))
-
-# file_dict is a dictionary (collection of keys:values) that will define how to shuffle around loot_tables
-file_dict = {}
-
-for file in file_list:
-    # Randomly grab a file from remaining ...
-    i = random.randint(0, len(remaining) - 1)
-    # ... and create a key:value pair of file_list:remaining(random)
-    file_dict[file] = remaining[i]
-    # Now remove the file from remaining so it's not processed again
-    del remaining[i]
-    # e.g.
-    # Imagine a file_list and remaining containing ['file_1', 'file_2', 'file_3']
-    # remaining[i] could be 'file_2'
-    # Now place the pairing of 'file_1':'file_2' into file_dict
-    # So file_dict is now {'file_1': 'file_2'}
-    # Now the next time this runs, the only files in remaining are 'file_1' and 'file_3'
-    # And the next iteration will be mapping 'file_2' to either of these remaining files
-    # The second iteration could therefore have a file_dict of {'file_1': 'file_2', 'file_2': 'file_3'}
-
-zipbytes = io.BytesIO()
-zip = zipfile.ZipFile(zipbytes, "w", zipfile.ZIP_DEFLATED, False)
-
-# from_file is the key in file_dict
-# e.g. In the key:value pair 'file_1':'file_2', it would be 'file_1'
-for from_file in file_dict:
-    # Copy the contents of the file into memory by using the variable contents
-    # e.g. For the first element in file_list, we are getting the contents of 'file_1'
-    with open(from_file) as file:
-        contents = file.read()
-
-        # (Presumably) write the file in /data/minecraft/ with our new file
-        # .e.g For the first element in file_list, we are writing 'file_1' to 'data/minecraft/file_2'
-    zip.writestr(os.path.join("data/minecraft/", file_dict[from_file]), contents)
-
-# Some Minecraft metadata stuff I assume lol
-zip.writestr(
+# set datapack metadata
+datapack.writestr(
     "pack.mcmeta",
     json.dumps({"pack": {"pack_format": 1, "description": datapack_desc}}, indent=4),
 )
-zip.writestr(
+datapack.writestr(
     "data/minecraft/tags/functions/load.json",
     json.dumps({"values": ["{}:reset".format(datapack_name)]}),
 )
-# SethBling please use argparse
-zip.writestr(
+datapack.writestr(
     "data/" + datapack_name + "/functions/reset.mcfunction",
-    'tellraw @a ["",{"text":"Loot table randomizer originally by SethBling, modified by AtticusTG and vpcuitis","color":"blue"}]',
+    'tellraw @a ["",{"text":"Loot table randomizer by AtticusTG and vpcuitis, based on the original script by SethBling","color":"blue"}]',
 )
 
-zip.close()
-# Actually write the data to a compressed zip file, because I assume this is what Minecraft wants
-with open(datapack_filename, "wb") as file:
-    file.write(zipbytes.getvalue())
+# seed RNG
+random.seed(args.seed)
 
-# Tada, we're done
+# randomly assign loot tables in the datapack
+for filename in vanillaLootTables.keys():
+    lootTable = random.choice(remainingLootTables)
+    writeLootTable(lootTable, filename)
+    remainingLootTables.remove(lootTable)
+
+# clean up
+datapack.close()
+
+# write the datapack bytes to a file in the folder
+# 'wb' is write mode and binary mode, since we are writing bytes
+datapack_file = open(datapack_filename, "wb")
+datapack_file.write(dpBytes.getvalue())
+
+# all done
 print("Created datapack " + datapack_filename)
+print("Enjoy!")
 
-# This is Atticus testing out github
-# Test post please ignore
