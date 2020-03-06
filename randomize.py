@@ -36,17 +36,9 @@ parser.add_argument(
 args = parser.parse_args()
 
 # get the path of the Minecraft folder
-def getMCFolder():
-    # message to print if automatically finding the jar fails
-    jarNotFound = (
-        "Please specify the location of the minecraft .jar using the -j option e.g.\n"
-        + parser.prog
-        + " -j "
-        + str(Path.home())
-        + "/.minecraft/versions/1.5.2/1.5.2.jar"
-    )
+def getMCFolder(jarNotFound):
     # attempt to set the location of minecraft .jar
-    # windows
+    # windows/cygwin
     if sys.platform == "win32":
         MCFolder = Path(os.getenv("APPDATA")) / ".minecraft"
     # mac
@@ -70,22 +62,40 @@ def getMCFolder():
     else:
         return MCFolder
 
+
 # get a zip file object of the minecraft .jar
 def getMCJar():
+    # message to print if automatically finding the jar fails
+    jarNotFound = (
+        "Please specify the location of the minecraft .jar using the -j option e.g.\n"
+        + parser.prog
+        + " -j "
+        + str(Path.home())
+        + "/.minecraft/versions/1.5.2/1.5.2.jar"
+    )
+
+    MCJar = None
+
     if args.jar is not None:
         try:
             MCJar = zipfile.ZipFile(args.jar)
         except FileNotFoundError:
-            print("Cannot find the specifified minecraft .jar file " + args.jar)
+            print("Could not find the specifified minecraft .jar file " + args.jar)
             exit()
-        return MCJar
     else:
-        # most up-to-date version is sorted to the start of the list
-        versions = sorted(os.listdir(MCFolder / "versions"))
-        version = versions[0]
-        print("Found Minecraft version " + version)
-        MCJar = zipfile.ZipFile(MCFolder / "versions" / version / (version + ".jar"))
+        # the minecraft folder
+        MCFolder = getMCFolder(jarNotFound)
+        for root, folder, files in os.walk(MCFolder / "versions"):
+            for filename in files:
+                if filename.endswith(".jar"):
+                    MCJar = zipfile.ZipFile(Path(root) / filename)
+    
+    if MCJar is None:
+        print("Unable to find the minecraft .jar\n" + jarNotFound)
+    else:
+        print("Found Minecraft version " + Path(MCJar.filename).stem)
         return MCJar
+
 
 # determine what folders to read loot tables from in the .jar based on -r argument
 # accepts the jarLootTablesFolder as an argument because best practices
@@ -94,12 +104,8 @@ def getJarLootTableSubfolders(folder):
 
     for subfolder in args.randomize.split(","):
         if subfolder == "gifts":
-            jarLootTablesSubfolders.append(
-                folder + "gameplay/hero_of_the_village/"
-            )
-            jarLootTablesSubfolders.append(
-                folder + "gameplay/cat_morning_gift.json"
-            )
+            jarLootTablesSubfolders.append(folder + "gameplay/hero_of_the_village/")
+            jarLootTablesSubfolders.append(folder + "gameplay/cat_morning_gift.json")
         elif subfolder == "fishing":
             # notably does not randomize gameplay/fishing.json. if we did,
             # fishing would most likely just return a set item everytime
@@ -111,12 +117,14 @@ def getJarLootTableSubfolders(folder):
             jarLootTablesSubfolders.append(folder + subfolder)
     return jarLootTablesSubfolders
 
+
 # detects loot table files when looping through files in .jar
 def isLootTableFile(filename, subfolders):
     # check if this file is in one of the folders specified by -r
     return filename.startswith(tuple(subfolders))
 
-#TODO: consolidate loot table operations into a lootTableDict object
+
+# TODO: consolidate loot table operations into a lootTableDict object
 # reads the loot tables from the .jar into memory
 def readLootTables(zipFile, subfolders):
     # a dictionary that stores the contents of each loot table with its filename as the key
@@ -134,6 +142,7 @@ def readLootTables(zipFile, subfolders):
     print("Randomizing " + str(lootTableCount) + " loot tables.")
     return (vanillaLootTables, remainingLootTables)
 
+
 # assign a lootTable to a filename in the datapack
 def writeLootTable(lootTable, filename):
     # convert Path object to str for writestr
@@ -141,23 +150,24 @@ def writeLootTable(lootTable, filename):
     # get the loot table that will be written to the filename
     lootTable = vanillaLootTables[lootTable]
     # write it to the in-memory datapack zip
-    datapack.writestr((jarLootTablesFolder + filename), lootTable)
+    datapack.writestr(filename, lootTable)
     print(jarLootTablesFolder + filename)
 
 
-# the minecraft folder
-MCFolder = getMCFolder()
 # the minecraft .jar file
 MCJar = getMCJar()
+exit()
 # loot_tables folder location in the .jar
 # not a Path object because of complications with filename.startswith
 jarLootTablesFolder = "data/minecraft/loot_tables/"
 # the subfolders of loot_tables folder in the .jar. controlled with -r
 jarLootTablesSubfolders = getJarLootTableSubfolders(jarLootTablesFolder)
 print("Looking for loot tables in\n")
-print(*jarLootTablesSubfolders, sep = "\n")
+print(*jarLootTablesSubfolders, sep="\n")
 
-(vanillaLootTables, remainingLootTables) = readLootTables(MCJar, jarLootTablesSubfolders)
+(vanillaLootTables, remainingLootTables) = readLootTables(
+    MCJar, jarLootTablesSubfolders
+)
 
 print("Generating datapack...")
 
