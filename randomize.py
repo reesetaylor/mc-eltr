@@ -156,7 +156,6 @@ def writeLootTable(lootTable, filename):
 
 # the minecraft .jar file
 MCJar = getMCJar()
-exit()
 # loot_tables folder location in the .jar
 # not a Path object because of complications with filename.startswith
 jarLootTablesFolder = "data/minecraft/loot_tables/"
