@@ -4,24 +4,27 @@ from pathlib import Path
 import json
 from tabulate import tabulate
 import io
+from blockLootPair import BlockLootPair
 
-# TODO: write class for pairings and rewrite to inherit from UserList
-# drawback would be shallow copies would no longer work. should override?
+# TODO: write class for pairings
 # wrapper around dict for working with loot tables
 class LootTables(UserDict):
+
+    #TODO: make the vanilla table a shared class variable
+    __original = {}
+
+    def __init__(self):
+        self.__staging = {}
+
+    def __setitem__(self, key, value):
+        
+        pass
 
     # accepts a path to the .jar and initializes loot tables from the chosen subfolders
     def initFromJar(
         self,
         jarPath: Path,
-        subfoldersChosen: dict = {
-            "blocks": True,
-            "chests": True,
-            "entities": True,
-            "gameplay/fishing/": True,
-            "gameplay/hero_of_the_village/": True,
-            "gameplay/cat_morning_gift.json": True,
-        },
+        subfoldersChosen: dict,
     ):
         lootTablesFolder = "data/minecraft/loot_tables"
         subfolderPaths = tuple(
@@ -34,18 +37,20 @@ class LootTables(UserDict):
             print("Could not find the minecraft .jar file " + str(jarPath))
             exit()
 
-        for filepath in jar.namelist():
-            if filepath.startswith(subfolderPaths):
-                data = json.load(jar.open(filepath))
-                data["srcFile"] = filepath
-                self[filepath] = data
+        for filePath in jar.namelist():
+            if filePath.startswith(subfolderPaths):
+                 # short name e.g. "dirt"
+                key = Path(filePath).stem
+                data = json.load(jar.open(filePath))
+                # any metadata we want to add based on the json, we would do so here
+                self[key] = BlockLootPair(filePath, data, filePath)
+                # keep a record of the original pairing
+                self.__original[key] = BlockLootPair(filePath, data, filePath)
 
         jar.close()
 
         return self
 
-    def randomize(self, seed):
-        return self
 
     # dumps to the console by default for debugging
     def dumpCheatSheet(self, outFile: Path = None):

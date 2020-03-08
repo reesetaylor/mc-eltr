@@ -26,6 +26,19 @@ parser.add_argument(
 
 args = parser.parse_args()
 
+# import settings
+
+settingsFile = "randomizerSettings.json"
+
+with open(settingsFile, 'r') as f:
+    settings = json.load(f)
+
+dpOutFolder = Path(settings["dpOutFolder"])
+dpOutFolder.mkdir(parents=True, exist_ok=True)
+
+# TODO: add recipe randomization
+lootTablesEnabled =  settings["lootTablesEnabled"]
+
 # get the path of the Minecraft folder
 def getMCFolder(jarNotFound):
     # attempt to set the location of minecraft .jar
@@ -86,21 +99,22 @@ def getMCJarPath():
 
 # the location of the minecraft .jar
 MCJarPath = getMCJarPath()
-vanillaLootTables = LootTables().initFromJar(MCJarPath)
-vanillaLootTables.dumpCheatSheet("cheatsheet_" + str(args.seed))
+tables = LootTables().initFromJar(MCJarPath, lootTablesEnabled)
 
 print("Generating datapack...")
 
-randomizedLootTables = vanillaLootTables.copy().randomize(args.seed)
+# randomized = vanilla.copy().randomize(args.seed)
+
+tables.dumpCheatSheet(dpOutFolder / ("cheatsheet_" + str(args.seed)))
 
 # set datapack information
 dpName = "random_loot_" + str(args.seed)
-dpFname = dpName + ".zip"
+dpFname = dpOutFolder / (dpName + ".zip")
 dpDesc = "Loot table randomizer, Seed: " + str(args.seed)
 dpResetMsg = 'tellraw @a ["",{"text":"Enhanced loot table randomizer by AtticusTG and vpcuitis, based on SethBling/Fasguy\'s script","color":"green"}]'
 
-randomizedLootTables.writeToDatapack(dpName, dpDesc, dpResetMsg, dpFname)
+tables.writeToDatapack(dpName, dpDesc, dpResetMsg, dpFname)
 
 # all done
-print("Created datapack " + dpFname + ". Enjoy!")
+print("Created datapack " + str(dpFname) + ". Enjoy!")
 
