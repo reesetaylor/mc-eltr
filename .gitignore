@@ -1,6 +1,5 @@
 # Minecraft loot tables
-loot_tables*
-random_loot_*
+output/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
