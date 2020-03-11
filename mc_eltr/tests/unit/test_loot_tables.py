@@ -53,4 +53,4 @@ def test_lt_pair_block_loot(lt_with_pair):
     assert "cobblestone" not in ub
     # oak log is not in unpaired loot
     assert "oak_log" not in ul
-    assert lt.get_block_loot("cobblestone") == "oak_log"
+    assert lt["cobblestone"] == "oak_log"

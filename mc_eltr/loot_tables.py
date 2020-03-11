@@ -66,11 +66,12 @@ class LootTables(UserDict):
         else:
             return None
     
-    def get_block_og_filename(self, block):
-        pass
+    def original_filename(self, block):
+        return self.original_pairings[block]['filename']
 
-    def get_block_og_loot(self, loot):
-        pass
+    def original_loot(self, block):
+        return self.original_pairings[block]["loot_table"]
+        
 
     def write_to_datapack(self, name, desc, reset_msg, out_file):
         buffer = io.BytesIO()
@@ -78,11 +79,10 @@ class LootTables(UserDict):
 
         for block in self:
             # get the filename for the block
-            filename = self.original_pairings[block]['filename']
-            # and write the referenced loot table to it
-            # you see now why I'm considering SQLite?
-            loot = self.original_pairings[self[block]]["loot"]
-            datapack.writestr(filename, loot)
+            filename = self.original_filename(block)
+            # and write the loot table of the block paired with it
+            loot_table = self.original_loot(self[block])
+            datapack.writestr(filename, loot_table)
 
         datapack.writestr(
             "pack.mcmeta",
@@ -103,48 +103,20 @@ class LootTables(UserDict):
         datapack_file = open(out_file, "wb")
         datapack_file.write(buffer.getvalue())
         datapack_file.close()
-    """
+    
     # dumps to the console by default for debugging
-    def dump_cheatSheet(self, outFile: Path = None):
+    def dump_cheatsheet(self, out_file: Path = None):
 
         columns = {
-            "Block": list(self.original[block]["filename"] for block in self),
-            "Loot table": self.keys(),
+            "Block": sorted(self.keys()),
+            "Loot table": list(self[block] for block in sorted(self.keys())),
         }
 
         output = tabulate(columns, headers=["Block", "Loot Table"])
 
-        if outFile is not None:
-            f = open(outFile, "w")
+        if out_file is not None:
+            f = open(out_file, "w")
             print(output, file=f)
             f.close()
         else:
             print(output)
-
-    def writeToDatapack(self, name, desc, resetMsg, outFile):
-        buffer = io.BytesIO()
-        datapack = zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED)
-
-        for block in self:
-            datapack.writestr(self[block]["filename"], self[block]["lootTable"])
-
-        datapack.writestr(
-            "pack.mcmeta",
-            json.dumps({"pack": {"pack_format": 1, "description": desc}}, indent=4),
-        )
-
-        datapack.writestr(
-            "data/minecraft/tags/functions/load.json",
-            json.dumps({"values": [name + ":reset"]}),
-        )
-
-        datapack.writestr(
-            "data/" + name + "/functions/reset.mcfunction", resetMsg,
-        )
-
-        datapack.close()
-
-        fileOnDisk = open(outFile, "wb")
-        fileOnDisk.write(buffer.getvalue())
-        fileOnDisk.close()
-"""
