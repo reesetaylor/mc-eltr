@@ -1,5 +1,5 @@
 import pytest
-from mc_eltr.loot_tables import LootTables
+from loot_tables import LootTables
 import os
 from pathlib import Path
 import json
@@ -16,11 +16,15 @@ COBBLESTONE = Path("data/loot_tables/blocks/cobblestone.json").as_posix()
 OAK_LOG = Path("data/loot_tables/blocks/oak_log.json").as_posix()
 
 @pytest.fixture
-def lt():
+def lt(tmp_path):
+    os.mkdir(tmp_path)
+    os.chdir(tmp_path)
     return LootTables(JAR_PATH, RANDOMIZE_ALL)
 
 @pytest.fixture
-def lt_with_pair():
+def lt_with_pair(tmp_path):
+    os.mkdir(tmp_path)
+    os.chdir(tmp_path)
     lt = LootTables(JAR_PATH, RANDOMIZE_ALL)
     lt.pair_block_loot("cobblestone", "oak_log")
     lt.pair_block_loot("cobblestone", "oak_log")
@@ -54,3 +58,6 @@ def test_lt_pair_block_loot(lt_with_pair):
     # oak log is not in unpaired loot
     assert "oak_log" not in ul
     assert lt["cobblestone"] == "oak_log"
+
+def test_lt_dump_cheatsheet(lt_with_pair):
+    pass
