@@ -5,8 +5,8 @@ import time
 from pathlib import Path
 
 from find_jar import find_jar
-from loot_tables import LootTables
-import randomizers
+from no_logic import NoLogic
+from skyblock import Skyblock
 
 def main():
     # parse arguments
@@ -26,13 +26,9 @@ def main():
 
     args = parser.parse_args()
 
-    # import settings
-
-    settings_path = "settings.json"
-
-    # open the settings file
-    with open(settings_path, 'r') as f:
-        settings = json.load(f)
+    # load the settings file
+    
+    settings = json.loads(Path("settings.json").read_text())
 
     # create the desired output folder if it doesn't exist
     output_folder = Path(settings["output_folder"])
@@ -42,32 +38,36 @@ def main():
     seed = args.seed
 
     # set datapack information
-    use_randomizer = "no_logic"
+    use_randomizer = "skyblock"
     dp_name = "random_loot_" + use_randomizer + "_" + str(seed)
     dp_filename = output_folder / (dp_name + ".zip")
     dp_description = "Loot table randomizer, Seed: " + str(seed)
     dp_reset_msg = 'tellraw @a ["",{"text":"Enhanced loot table randomizer by AtticusTG and vpcuitis, based on SethBling/Fasguy\'s script","color":"green"}]'
 
     # set location of Minecraft .jar
-    jar = find_jar(args, parser.prog)
+    jar, version = find_jar(args, parser.prog)
 
-    # set randomization for the chosen loot tables
-    randomize_loot = settings["randomize_loot"]
+    print("Found Minecraft version " + version)
 
     print("Generating datapack...")
 
-    # initialize a table from the loot tables in .jar
-    initial_tables = LootTables(jar, randomize_loot)
+    exit()
 
     # TODO: add recipe randomization
     # call the randomizer
-    randomized_tables = randomizers.no_logic(initial_tables, seed)
+    if(use_randomizer == "skyblock"):
+        # item obtainment data for use with skyblock randomizer
+        obtainment_data = json.loads(Path("data/obtainment.json").read_text())
+        # player starts with unlimited cobblestone
+        randomized_tables = Skyblock(jar, settings, obtainment_data, "cobblestone").randomize(seed)
+    else:
+        randomized_tables = NoLogic(jar, settings, obtainment_data).randomize(seed)
 
     # write the loot tables to a datapack
-    randomized_tables.write_to_datapack(dp_name, dp_description, dp_reset_msg, dp_filename)
+    # randomized_tables.write_to_datapack(dp_name, dp_description, dp_reset_msg, dp_filename)
 
     # write the cheatsheet
-    randomized_tables.dump_cheatsheet(output_folder / ("cheatsheet_" + str(seed)))
+    # randomized_tables.dump_cheatsheet(output_folder / ("cheatsheet_" + str(seed)))
 
     # all done
     print("Created datapack " + str(dp_filename) + ". Enjoy!")

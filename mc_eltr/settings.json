@@ -9,5 +9,7 @@
         "gameplay/fishing.json": "true",
         "gameplay/hero_of_the_village/": "true",
         "gameplay/cat_morning_gift.json": "true"
-    }
+    },
+    "randomize_recipes": false,
+    "entities_drop_key_items": false
 }

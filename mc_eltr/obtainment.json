@@ -1,0 +1,22 @@
+{
+  "access_criteria": {
+    "nether": ["flintandsteel", "obsidian"],
+    "end": ["eye_of_ender"],
+    "farmland": [
+      "dirt",
+      [
+        "wooden_hoe",
+        "stone_hoe",
+        "iron_hoe",
+        "diamond_hoe",
+        "golden_hoe",
+        "netherite_hoe"
+      ]
+    ]
+  },
+  "special_blocks": {
+    "nether": [],
+    "end": [],
+    "very_rare": []
+  }
+}

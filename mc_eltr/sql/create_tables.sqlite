@@ -1,0 +1,21 @@
+CREATE TABLE blocks(
+    block PRIMARY KEY,
+    type,
+    access,
+    fname text NOT NULL
+);
+
+CREATE TABLE drops(
+    rowid integer PRIMARY KEY,
+    block text NOT NULL,
+    drops text NOT NULL,
+    FOREIGN KEY (block) REFERENCES loot_table_files(block)
+);
+
+CREATE TABLE loot_tables(
+    rowid integer PRIMARY KEY,
+    block text NOT NULL,
+    loot text NOT NULL,
+    FOREIGN KEY (block) REFERENCES loot_table_files(block),
+    FOREIGN KEY (loot) REFERENCES loot_table_files(block)
+);

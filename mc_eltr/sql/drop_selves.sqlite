@@ -1,0 +1,3 @@
+SELECT drops.block
+FROM drops INNER JOIN loot_table_files ON loot_table_files.block = drops.block 
+WHERE loot_table_files.type = 'block' AND drops.block = drops.drops;

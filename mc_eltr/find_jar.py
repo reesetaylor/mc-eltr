@@ -57,5 +57,5 @@ def find_jar(args, prog):
         print("Unable to find the minecraft .jar\n" + jar_not_found)
         exit()
     else:
-        print("Found Minecraft version " + jar.stem)
-        return jar
+        version = jar.stem
+        return (jar, version)

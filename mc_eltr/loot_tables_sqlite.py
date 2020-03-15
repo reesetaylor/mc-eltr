@@ -1,4 +1,4 @@
-from collections import UserDict
+import sys
 import zipfile
 from pathlib import Path
 import json
@@ -6,25 +6,20 @@ from tabulate import tabulate
 import io
 import sqlite3
 
-# wrapper around sqlite database connection
-class LootTables(UserDict):
+# wrapper around sqlite database
+class LootTables:
     original_pairings = dict()
     original_blocks = set()
-    
-    # TODO: also gather recipes in a Recipes object for use with attainability
-    # accepts a path to the .jar and initializes loot tables from the chosen subfolders
-    def __init__(self, jar_path: Path, randomize_loot: dict):
-        # call parent constructor
 
-        # convert the loot_tables subfolders into full paths
-        loot_tables_folder = "data/minecraft/loot_tables"
-        loot_tables_subfolders = tuple(
-            list((Path(loot_tables_folder) / sf).as_posix() for sf in randomize_loot)
-        )
+    # TODO: also gather recipes in a Recipes object for use with obtainability
+    def __init__(self, jar_path, settings, obtainment_data):
+        # set settings as a member for children to use
+        self.settings = settings
+        # set obtainment data as a memember for children to use
+        self.obt_data = obtainment_data
+        # load settings for which loot tables to randomize
+        randomize_loot = settings["randomize_loot"]
 
-        # add the paths for recipes
-        
-        
         # open the .jar file
         try:
             jar = zipfile.ZipFile(jar_path)
@@ -32,90 +27,94 @@ class LootTables(UserDict):
             print("Could not find the minecraft .jar file " + str(jar_path))
             exit()
 
+        # convert the loot_tables subfolders into full paths
+        # defined as a member for use in scan loot tables
+        self.loot_tables_folder = Path("data/minecraft/loot_tables")
+        loot_tables_subfolders = tuple(
+            list((self.loot_tables_folder / sf).as_posix() for sf in randomize_loot)
+        )
+
+        # sheep folder for aliasing sheep filenames
+        self.loot_tables_folder = Path("data/minecraft/loot_tables/entities/sheep")
+
+        recipes_folder = Path("data/minecraft/recipes").as_posix()
+
+        # initialize the database
+        self.conn = sqlite3.connect("sql/loot_tables.db")
+
+        conn = self.conn
+
+        # read sqlite scripts
+        create_tables, insert_lt_files, insert_drop = map(
+            lambda s: Path(s).read_text(),
+            [
+                "sql/create_tables.sqlite",
+                "sql/insert_lt_files.sqlite",
+                "sql/insert_drop.sqlite",
+            ],
+        )
+
+        conn.executescript(create_tables)
+
         # write the loot tables and recipes
         for file_path in jar.namelist():
             if file_path.startswith(loot_tables_subfolders):
-                '''
                 # short name e.g. "dirt"
                 block = Path(file_path).stem
-                loot = jar.open(file_path).read()
-                # if we want to modify the json, we would do so here
-                # record the file this loot table originally goes with
-                self.original_pairings[block] = {"filename": file_path, "loot_table": loot}
-                '''
-            
-            jar.close()
-            
-            self.original_blocks = set(self.original_pairings.keys())
-            self.paired_loot_ = []
-
-    def __del__(self):
-        # delete the sqlite file
-        pass
-
-    def paired_blocks(self):
-        return set(self.keys())
-
-    def unpaired_blocks(self):
-        return self.original_blocks - self.paired_blocks()
-
-    def paired_loot(self):
-        return set(self.paired_loot_)
-
-    def unpaired_loot(self):
-        return self.original_blocks - self.paired_loot()
-
-    # TODO: validation
-    # TODO: weigh SQLite as an option for filtering
-    def pair_block_loot(self, block, loot):
-        self[block] = loot
-        self.paired_loot_.append(loot)
-        return self
-    
-    def get_block_loot(self, block):
-        if self[block] is not None:
-            return self[block]
-        else:
-            return None
-    
-    def original_filename(self, block):
-        return self.original_pairings[block]['filename']
-
-    def original_loot(self, block):
-        return self.original_pairings[block]["loot_table"]
+                # open file contents as json
+                file_contents = json.load(jar.open(file_path))
+                # type of item (block, entity, fishing, gift)
+                type_ = file_contents["type"].split(":")[-1]
+                # scans what items are dropped from this block's loot table
+                drops = self.scan_loot_table(file_contents)
+                # convert file contents back into a string
+                file_contents = json.dumps(file_contents)
+                # insert file information for the block
+                conn.execute(insert_lt_files, (block, file_path, type_, file_contents))
+                # insert block's loot table drops if it has any
+                for drop in drops:
+                    conn.execute(insert_drop, (block, drop))
+            elif file_path.startswith(recipes_folder):
+                # write recipe to db
+                pass
         
+        # all done with the .jar, close it
+        jar.close()
 
-    def write_to_datapack(self, name, desc, reset_msg, out_file):
-        buffer = io.BytesIO()
-        datapack = zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED)
+        # add information about blocks that are in the end and the nether
 
-        for block in self:
-            # get the filename for the block
-            filename = self.original_filename(block)
-            # and write the loot table of the block paired with it
-            loot_table = self.original_loot(self[block])
-            datapack.writestr(filename, loot_table)
+        conn.commit()
 
-        datapack.writestr(
-            "pack.mcmeta",
-            json.dumps({"pack": {"pack_format": 1, "description": desc}}, indent=4),
-        )
+    def scan_loot_table(self, loot_table):
+        # there are a lot of conditions that affect what drops
+        # as long as they don't affect any of the critical items
+        # i.e. obsidian, flint and steel, or eyes of ender
+        # 100% accurate information is not necessary
+        drops = []
+        # check that block/entity has drops
+        if not "pools" in loot_table:
+            return drops
+        for p in loot_table["pools"]:
+            for e in p["entries"]:
+                if e["type"].endswith("item"):
+                    drops.append(e["name"].split(":")[-1])
+                elif e["type"] == "minecraft:alternatives":
+                    for c in e["children"]:
+                        if c["type"] == "minecraft:item":
+                            drops.append(c["name"])
+                elif e["type"] == "minecraft:loot_table":
+                    # recursively read the referenced loot_table
+                    # performance takes a hit, but only the colored sheep and a few others have this
+                    # I think I also stopped caring about performance when I added SQLite
+                    drops.append(
+                        self.scan_loot_table(
+                            json.loads(
+                                (self.loot_tables_folder / Path(e["name"]).read_text())
+                            )
+                        )
+                    )
 
-        datapack.writestr(
-            "data/minecraft/tags/functions/load.json",
-            json.dumps({"values": [name + ":reset"]}),
-        )
+        return drops
 
-        datapack.writestr(
-            "data/" + name + "/functions/reset.mcfunction", reset_msg,
-        )
-
-        datapack.close()
-
-        datapack_file = open(out_file, "wb")
-        datapack_file.write(buffer.getvalue())
-        datapack_file.close()
-    
-    # dumps to the console by default for debugging
-    def dump_cheatsheet(self, out_file: Path = None):
+    def scan_recipe(self):
         pass
