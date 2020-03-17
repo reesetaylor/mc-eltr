@@ -1,2 +1,0 @@
-INSERT INTO loot_table_files(block,fname,type,contents)
-VALUES(?,?,?,?)

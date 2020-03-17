@@ -1,3 +1,4 @@
+import os
 import sys
 import zipfile
 from pathlib import Path
@@ -35,26 +36,22 @@ class LootTables:
         )
 
         # sheep folder for aliasing sheep filenames
-        self.loot_tables_folder = Path("data/minecraft/loot_tables/entities/sheep")
+        self.sheep_folder = Path("data/minecraft/loot_tables/entities/sheep")
 
         recipes_folder = Path("data/minecraft/recipes").as_posix()
 
         # initialize the database
+        if os.path.exists("sql/loot_tables.db"):
+            os.remove("sql/loot_tables.db")
+
         self.conn = sqlite3.connect("sql/loot_tables.db")
 
-        conn = self.conn
-
         # read sqlite scripts
-        create_tables, insert_lt_files, insert_drop = map(
-            lambda s: Path(s).read_text(),
-            [
-                "sql/create_tables.sqlite",
-                "sql/insert_lt_files.sqlite",
-                "sql/insert_drop.sqlite",
-            ],
-        )
+        self.scripts = {}
+        for script in Path("sql/").glob("*.sqlite"):
+            self.scripts[Path(script).stem] = Path(script).read_text()
 
-        conn.executescript(create_tables)
+        self.conn.executescript(self.scripts["create_tables"])
 
         # write the loot tables and recipes
         for file_path in jar.namelist():
@@ -62,59 +59,67 @@ class LootTables:
                 # short name e.g. "dirt"
                 block = Path(file_path).stem
                 # open file contents as json
-                file_contents = json.load(jar.open(file_path))
-                # type of item (block, entity, fishing, gift)
-                type_ = file_contents["type"].split(":")[-1]
+                loot_table = json.load(jar.open(file_path))
+                # type of block (block, entity, fishing, gift)
+                type_ = loot_table["type"].split(":")[-1]
                 # scans what items are dropped from this block's loot table
-                drops = self.scan_loot_table(file_contents)
-                # convert file contents back into a string
-                file_contents = json.dumps(file_contents)
+                drop_values = self.scan_loot_table(block, loot_table)
                 # insert file information for the block
-                conn.execute(insert_lt_files, (block, file_path, type_, file_contents))
+                self.conn.execute(
+                    "INSERT INTO blocks(block,type,area,fname) VALUES(?,?,?,?)",
+                    (block, type_, "ow", file_path),
+                )
                 # insert block's loot table drops if it has any
-                for drop in drops:
-                    conn.execute(insert_drop, (block, drop))
+                self.conn.executemany(
+                    "INSERT INTO drops(block,item) VALUES (?,?)", drop_values
+                )
             elif file_path.startswith(recipes_folder):
                 # write recipe to db
                 pass
-        
-        # all done with the .jar, close it
+
+        # close the .jar until we need it again to write the datapack
         jar.close()
 
-        # add information about blocks that are in the end and the nether
+        # add information to blocks/entities only found in the nether or end
+        s_blocks = self.obt_data["special_blocks"]
+        area_values = []
+        for a in s_blocks:
+            for b in s_blocks[a]:
+                area_values.append((a, b))
 
-        conn.commit()
+        self.conn.executemany("UPDATE blocks SET area = ? WHERE block = ?", area_values)
 
-    def scan_loot_table(self, loot_table):
-        # there are a lot of conditions that affect what drops
-        # as long as they don't affect any of the critical items
+        # remove unreliable drops from the drops table as they pertain to critical items
+        # zombies DO NOT reliably drop iron
+
+        self.conn.commit()
+
+    # TODO: gravel doesn't detect as dropping flint, which is necessary to ensure flintandsteel can be crafted
+    def scan_loot_table(self, block, loot_table):
+        # there are a lot of conditions that affect what a block/entity drops
+        # as long as it does pertain to any of the critical items
         # i.e. obsidian, flint and steel, or eyes of ender
         # 100% accurate information is not necessary
-        drops = []
+
+        drop_values = []
+
+        def scan_entry(block, e):
+            if e["type"].endswith("item"):
+                drop_values.append((block, e["name"].split(":")[-1]))
+            elif e["type"] == "minecraft:alternatives":
+                for c in e["children"]:
+                    scan_entry(block, c)
+            elif e["type"] == "minecraft:loot_table":
+                pass
+
         # check that block/entity has drops
         if not "pools" in loot_table:
-            return drops
+            return drop_values
         for p in loot_table["pools"]:
             for e in p["entries"]:
-                if e["type"].endswith("item"):
-                    drops.append(e["name"].split(":")[-1])
-                elif e["type"] == "minecraft:alternatives":
-                    for c in e["children"]:
-                        if c["type"] == "minecraft:item":
-                            drops.append(c["name"])
-                elif e["type"] == "minecraft:loot_table":
-                    # recursively read the referenced loot_table
-                    # performance takes a hit, but only the colored sheep and a few others have this
-                    # I think I also stopped caring about performance when I added SQLite
-                    drops.append(
-                        self.scan_loot_table(
-                            json.loads(
-                                (self.loot_tables_folder / Path(e["name"]).read_text())
-                            )
-                        )
-                    )
+                scan_entry(block, e)
 
-        return drops
+        return drop_values
 
     def scan_recipe(self):
         pass

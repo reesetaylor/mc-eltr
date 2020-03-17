@@ -27,4 +27,7 @@ def test_lt_scan_drops(lt):
     # elder guardian drops everything
     pass
 
+def test_lt_scan_recipes(lt):
+    pass
+
     

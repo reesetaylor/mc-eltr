@@ -39,27 +39,25 @@ def main():
 
     # set datapack information
     use_randomizer = "skyblock"
-    dp_name = "random_loot_" + use_randomizer + "_" + str(seed)
-    dp_filename = output_folder / (dp_name + ".zip")
-    dp_description = "Loot table randomizer, Seed: " + str(seed)
+    dp_name = f"random_loot_{use_randomizer}_{seed}"
+    dp_filename = output_folder / f"{dp_name}.zip"
+    dp_description = f"Loot table randomizer, Seed: {seed}"
     dp_reset_msg = 'tellraw @a ["",{"text":"Enhanced loot table randomizer by AtticusTG and vpcuitis, based on SethBling/Fasguy\'s script","color":"green"}]'
 
     # set location of Minecraft .jar
     jar, version = find_jar(args, parser.prog)
 
-    print("Found Minecraft version " + version)
+    print(f"Found Minecraft version {version}")
 
     print("Generating datapack...")
-
-    exit()
 
     # TODO: add recipe randomization
     # call the randomizer
     if(use_randomizer == "skyblock"):
         # item obtainment data for use with skyblock randomizer
-        obtainment_data = json.loads(Path("data/obtainment.json").read_text())
+        obtainment_data = json.loads(Path("obtainment.json").read_text())
         # player starts with unlimited cobblestone
-        randomized_tables = Skyblock(jar, settings, obtainment_data, "cobblestone").randomize(seed)
+        randomized_tables = Skyblock(jar, settings, obtainment_data, "dirt").randomize(seed)
     else:
         randomized_tables = NoLogic(jar, settings, obtainment_data).randomize(seed)
 
@@ -70,4 +68,4 @@ def main():
     # randomized_tables.dump_cheatsheet(output_folder / ("cheatsheet_" + str(seed)))
 
     # all done
-    print("Created datapack " + str(dp_filename) + ". Enjoy!")
+    # print(f"Created datapack {dp_filename}. Enjoy!")

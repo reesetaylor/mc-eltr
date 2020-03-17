@@ -1,21 +1,27 @@
 CREATE TABLE blocks(
     block PRIMARY KEY,
     type,
-    access,
+    area,
     fname text NOT NULL
 );
 
 CREATE TABLE drops(
     rowid integer PRIMARY KEY,
     block text NOT NULL,
-    drops text NOT NULL,
-    FOREIGN KEY (block) REFERENCES loot_table_files(block)
+    item text NOT NULL,
+    FOREIGN KEY (block) REFERENCES blocks(block)
 );
 
-CREATE TABLE loot_tables(
+CREATE TABLE recipes(
+    rowid integer PRIMARY KEY,
+    item text NOT NULL,
+    needs text NOT NULL
+);
+
+CREATE TABLE assigned(
     rowid integer PRIMARY KEY,
     block text NOT NULL,
     loot text NOT NULL,
-    FOREIGN KEY (block) REFERENCES loot_table_files(block),
-    FOREIGN KEY (loot) REFERENCES loot_table_files(block)
+    FOREIGN KEY (block) REFERENCES blocks(block),
+    FOREIGN KEY (loot) REFERENCES block(block)
 );

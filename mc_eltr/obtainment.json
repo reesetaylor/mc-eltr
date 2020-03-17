@@ -15,8 +15,19 @@
     ]
   },
   "special_blocks": {
-    "nether": [],
-    "end": [],
-    "very_rare": []
-  }
+    "nether": ["netherrack"],
+    "end": ["end_stone"],
+    "farmland": ["melon", "melon_stem", "pumpkin", "pumpkin_stem"],
+    "very_rare": [
+      "mycelium",
+      "mushroom_stem",
+      "brown_mushroom_block",
+      "red_mushroom_block",
+      "mooshroom",
+      "slime",
+      "ender_dragon",
+      "dragon_egg"
+    ]
+  },
+  "unreliable_drops": [["zombie", "iron"]]
 }
