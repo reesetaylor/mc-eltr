@@ -11,7 +11,6 @@ class Skyblock(LootTables):
         super().__init__(jar, settings, obtainment_data)
         # set up progression criteria from json
         self.access_criteria = self.obt_data["access_criteria"]
-        self.entities_drop_key_items = self.settings["entities_drop_key_items"]
         self.start_block = start_block
 
     def randomize(self, seed):
@@ -20,34 +19,35 @@ class Skyblock(LootTables):
         random.seed(seed)
         # players start with overworld access
         # assign to blocks/entities available before nether and not extremely rare
-        self.avail_blocks = self.conn.execute(
+
+        # blocks eligible to be assigned critical items for nether access
+        crit_block_candidates = self.conn.execute(
             "SELECT block FROM blocks WHERE area='ow' AND type='block'"
         ).fetchall()
 
-        logging.info(
-            f"found {len(self.avail_blocks)} candidate blocks for initial chain."
-        )
+        # all blocks' loot tables are searched for dropping critical items for nether access
+        crit_loot_candidates = self.conn.execute(
+            "SELECT block FROM blocks"
+        ).fetchall()
 
+        # assign critical items for nether access to random eligible blocks
+        self.grant_access("nether", crit_block_candidates)
+
+        chain_blocks = []
         # TODO: second pass to check for craftable blocks
         # note that igloo_chest is not a candidate loot table even though it can drop emerald, which is the sole ingredient to craft emerald_block.
         # I'll implement a second pass to detect these cases once recipe scanning is done
-        chain_loot = self.conn.execute(
-            self.scripts["chain_loot"]
-        ).fetchall()
+        chain_loot = self.conn.execute(self.scripts["chain_loot"]).fetchall()
 
         # shuffle the block queue for random assignments in grant_access
-        random.shuffle(self.avail_blocks)
-
-        # assign blocks loot tables that drop the critical items
-        self.grant_access("nether", chain_loot)
+        random.shuffle(chain_blocks)
 
         # then remove those blocks and loot tables from the pool to preserve 1:1 assignment
 
         # our list of available loot excludes the loot tables that were already assigned when granting nether access
 
-        
         # assign the last block to drop the first block, closing the loop
-    
+
         # assign start_block one of the self-dropping block loot tables
         # assign the dropped block one of the remaining self-dropping loot tables
         # repeat this process until there are not any loot tables remaining
@@ -73,22 +73,43 @@ class Skyblock(LootTables):
 
         return self
 
-    def grant_access(self, access, avail_loot):
-        # for each critical item either
-        # provide a loot table that drops it or loot tables to craft it
+    def grant_access(self, access, crit_block_candidates):
+        # for each critical item either assign a loot table that drops it
+        # or assign loot tables that drop its components
         criteria = self.access_criteria[access]
         for item in criteria:
-            # check if item is already obtainable from an assigned loot table
-            # else
-            # check if any candidate loot tables will drop it
-            # intersection of blocks that drop the item and available loot tables
-            # if empty add loot tables for crafting
-            pass
+            self.add_item(item)
 
-    def drops_item(self, item):
-        pass
-
-    def grant_item_components(self, items):
-        # recursion time
+    def can_be_obtained(self, item):
+        # get the items components
+        # get all items dropped by the assigned loot tables
+        # returns false if a component can't be found
+        # if all components can be found, return true
         return True
+
+    def get_item_components(self, item):
+        return []
+
+    def add_item(self, item):
+        if isinstance(item, list):
+            if True in list(map(lambda i: self.can_be_obtained(i), item)):
+                # do nothing if any item in the list is already obtainable
+                print(f"at least one item from criteria {item} is obtainable")    
+            else:
+                print(f"no items from criteria {item} are obtainable. adding via crafting")
+                # if none are obtainable, add components for a random one
+                item = (random.choice(item))
+                for c in self.get_item_components(item):
+                    self.add_item(c)
+        else:
+            if self.can_be_obtained(item):
+                # do nothing if the item is already obtainable
+                print(f"{item} is obtainable")
+            else:
+                # try to add a candidate loot table
+                # if that fails, add components
+                print(f"{item} is obtainable")
+                for c in self.get_item_components(item):
+                    self.add_item(c)
+
 
