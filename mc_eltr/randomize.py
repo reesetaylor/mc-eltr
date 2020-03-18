@@ -5,7 +5,9 @@ import time
 from pathlib import Path
 
 from find_jar import find_jar
+import no_logic
 from no_logic import NoLogic
+import skyblock
 from skyblock import Skyblock
 
 def main():

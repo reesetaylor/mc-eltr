@@ -1,7 +1,7 @@
 {
   "access_criteria": {
-    "nether": ["flintandsteel", "obsidian"],
-    "end": ["eye_of_ender"],
+    "nether": ["flint_and_steel", "obsidian"],
+    "end": ["ender_eye"],
     "farmland": [
       "dirt",
       [
@@ -29,5 +29,9 @@
       "dragon_egg"
     ]
   },
-  "unreliable_drops": [["zombie", "iron"]]
+  "unreliable_drops": [
+    ["zombie", "iron_ingot"],
+    ["zombie_villager", "iron_ingot"],
+    ["nether_bridge", "flint_and_steel"]
+  ]
 }
