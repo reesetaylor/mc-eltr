@@ -26,9 +26,9 @@ class Skyblock(LootTables):
         ).fetchall()
 
         # all blocks' loot tables are searched for dropping critical items for nether access
-        crit_loot_candidates = self.conn.execute(
-            "SELECT block FROM blocks"
-        ).fetchall()
+        #crit_loot_candidates = self.conn.execute(
+        #    "SELECT block FROM blocks"
+        #).fetchall()
 
         # assign critical items for nether access to random eligible blocks
         self.grant_access("nether", crit_block_candidates)
@@ -80,36 +80,28 @@ class Skyblock(LootTables):
         for item in criteria:
             self.add_item(item)
 
-    def can_be_obtained(self, item):
-        # get the items components
-        # get all items dropped by the assigned loot tables
-        # returns false if a component can't be found
-        # if all components can be found, return true
-        return True
-
-    def get_item_components(self, item):
-        return []
-
     def add_item(self, item):
-        if isinstance(item, list):
-            if True in list(map(lambda i: self.can_be_obtained(i), item)):
-                # do nothing if any item in the list is already obtainable
-                print(f"at least one item from criteria {item} is obtainable")    
+        def is_dropped(item):
+            return self.conn.execute("? IN (SELECT drops.item)", item).fetchone()
+
+        def find_candidate_loot(item):
+            return []
+
+        def get_item_components(item):
+            return []
+        
+        # if passed a list, check if at least one is obtainable
+        if isinstance(item, list) and (1 not in list(map(lambda i: self.is_dropped(i), item))):
+            # if none are obtainable add a random one
+            item = random.choice(item)
+        # check if the item is already dropped
+        if not is_dropped(item):
+            # try to find a candidate loot table to drop the item
+            candidates = find_candidate_loot(item)
+            if candidates is not None:
+                # assign a candidate loot table to a candidate block
             else:
-                print(f"no items from criteria {item} are obtainable. adding via crafting")
-                # if none are obtainable, add components for a random one
-                item = (random.choice(item))
-                for c in self.get_item_components(item):
-                    self.add_item(c)
-        else:
-            if self.can_be_obtained(item):
-                # do nothing if the item is already obtainable
-                print(f"{item} is obtainable")
-            else:
-                # try to add a candidate loot table
-                # if that fails, add components
-                print(f"{item} is obtainable")
-                for c in self.get_item_components(item):
-                    self.add_item(c)
+                # get the components required to craft the item
+                # for each component, recursively add its components
 
 
