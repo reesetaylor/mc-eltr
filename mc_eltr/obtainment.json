@@ -1,18 +1,8 @@
 {
-  "access_criteria": {
+  "required_items": {
+    "ow": [],
     "nether": ["flint_and_steel", "obsidian"],
-    "end": ["ender_eye"],
-    "farmland": [
-      "dirt",
-      [
-        "wooden_hoe",
-        "stone_hoe",
-        "iron_hoe",
-        "diamond_hoe",
-        "golden_hoe",
-        "netherite_hoe"
-      ]
-    ]
+    "end": ["ender_eye"]
   },
   "special_blocks": {
     "nether": ["netherrack"],

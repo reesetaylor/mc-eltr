@@ -1,6 +1,0 @@
-SELECT DISTINCT drops.block
-FROM drops INNER JOIN blocks ON blocks.block = drops.block
-WHERE drops.item IN (SELECT blocks.block FROM blocks WHERE blocks.type='block')
-EXCEPT
-SELECT assigned.loot
-FROM assigned

@@ -15,6 +15,8 @@ class LootTables:
         self.settings = settings
         # set obtainment data as a memember for children to use
         self.obt_data = obtainment_data
+        # set information about special blocks
+        self.s_blocks = self.obt_data["special_blocks"]
         # load settings for which loot tables to randomize
         randomize_loot = settings["randomize_loot"]
 
@@ -30,7 +32,7 @@ class LootTables:
             os.remove("sql/loot_tables.db")
 
         self.conn = sqlite3.connect("sql/loot_tables.db")
-        # return lists instead of lists of tuples
+        # return nested lists instead of lists of tuples
         self.conn.row_factory = lambda cursor, row: row[0]
 
         # create tables
@@ -73,9 +75,6 @@ class LootTables:
             list((self.loot_tables_folder / sf).as_posix() for sf in randomize_loot)
         )
 
-        # sheep folder for aliasing sheep filenames
-        self.sheep_folder = Path("data/minecraft/loot_tables/entities/sheep")
-
         # recipes
         recipes_folder = Path("data/minecraft/recipes").as_posix()
         recipes_files = []
@@ -96,15 +95,17 @@ class LootTables:
                 type_ = loot_table["type"].split(":")[-1]
                 # scans what items are dropped from this block's loot table
                 drop_values = self.scan_loot_table(block, loot_table)
-                # insert file information for the block
-                self.conn.execute(
-                    "INSERT INTO blocks(block,type,area,fname) VALUES(?,?,?,?)",
-                    (block, type_, "ow", file_path),
-                )
-                # insert block's loot table drops if it has any
-                self.conn.executemany(
-                    "INSERT INTO drops(block,item) VALUES (?,?)", drop_values
-                )
+                # we only care about this block if it has drops
+                if drop_values:
+                    # insert file information for the block
+                    self.conn.execute(
+                        "INSERT INTO blocks(block,type,area,fname) VALUES(?,?,?,?)",
+                        (block, type_, "ow", file_path),
+                    )
+                    # insert block's loot table drops
+                    self.conn.executemany(
+                        "INSERT INTO drops(block,item) VALUES (?,?)", drop_values
+                    )
             elif file_path.startswith(tags_folder):
                 tag = json.load(jar.open(file_path))
                 tag_name = Path(file_path).stem
@@ -125,10 +126,9 @@ class LootTables:
         jar.close()
 
         # add information to blocks/entities only found in the nether or end
-        s_blocks = self.obt_data["special_blocks"]
         area_values = []
-        for a in s_blocks:
-            for b in s_blocks[a]:
+        for a in self.s_blocks:
+            for b in self.s_blocks[a]:
                 area_values.append((a, b))
 
         self.conn.executemany("UPDATE blocks SET area = ? WHERE block = ?", area_values)
@@ -138,15 +138,17 @@ class LootTables:
         unreliable_drops = []
         for ud in obtainment_data["unreliable_drops"]:
             unreliable_drops.append((ud[0], ud[1]))
-        
-        self.conn.executemany("DELETE FROM drops WHERE block=? AND item=?", unreliable_drops)
+
+        self.conn.executemany(
+            "DELETE FROM drops WHERE block=? AND item=?", unreliable_drops
+        )
 
         self.conn.commit()
-    
+
     # convenience function to strip namespace
     def sns(self, name):
-        return name.split(':')[-1]
-    
+        return name.split(":")[-1]
+
     def scan_loot_table(self, block, loot_table):
         # there are a lot of conditions that affect what a block/entity drops
         # as long as it does pertain to any of the critical items
@@ -180,6 +182,7 @@ class LootTables:
         # again, only really care about anything that could affect critical items
         sns = self.sns
         recipe_values = []
+
         if recipe["type"] == "minecraft:crafting_shaped":
             item = sns(recipe["result"]["item"])
             for i in recipe["key"]:
@@ -188,6 +191,7 @@ class LootTables:
                         recipe_values.append((item, sns(j["item"])))
                     elif "tag" in j:
                         recipe_values.append((item, sns(j["tag"])))
+
         elif recipe["type"] == "minecraft:crafting_shapeless":
             item = sns(recipe["result"]["item"])
             for i in recipe["ingredients"]:
@@ -195,10 +199,16 @@ class LootTables:
                     recipe_values.append((item, sns(i["item"])))
                 elif "tag" in i:
                     recipe_values.append((item, sns(i["tag"])))
+
         elif recipe["type"] == "minecraft:smelting":
-            item = sns(recipe["result"]["item"])
-            if "item" in recipe["ingredient"]:
+            item = sns(recipe["result"])
+            i = recipe["ingredient"]
+            if "item" in i:
                 recipe_values.append((item, sns(i["item"])))
-            elif "tag" in recipe["ingredient"]:
+            elif "tag" in i:
                 recipe_values.append((item, sns(i["tag"])))
-        self.conn.executemany("INSERT INTO recipes(item,needs) VALUES (?,?)", recipe_values)
+
+        self.conn.executemany(
+            "INSERT INTO recipes(item,needs) VALUES (?,?)", recipe_values
+        )
+

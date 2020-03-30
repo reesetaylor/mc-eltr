@@ -19,15 +19,5 @@ OAK_LOG = Path("data/loot_tables/blocks/oak_log.json").as_posix()
 def sb():
     return Skyblock(JAR_PATH, SETTINGS, OBT_DATA, "dirt")
 
-def test_sb_init(sb):
-    # make sure every type of drop is detected
-    # silk touch
-    # emerald ore scans as dropping emerald ore
-    # alternatives
-    # elder guardian drops everything
+def test_grant_access(sb):
     pass
-
-def test_lt_scan_recipes(lt):
-    pass
-
-    

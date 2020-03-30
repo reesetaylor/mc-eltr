@@ -1,3 +1,0 @@
-SELECT DISTINCT assigned.block
-FROM assigned INNER JOIN drops ON assigned.loot = drops.block
-WHERE drops.item = ?
