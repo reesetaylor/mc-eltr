@@ -1,2 +1,6 @@
 # mc-eltr
-Enhanced loot table randomizer for Minecraft based on SethBling/Fasguy's original script. The goal is to add logic to ensure every item is obtainable. This is accomplished using a set of classes for coneveniently working with loot tables and their block with loot table pairings. Currently only implements randomization without logic.  WIP pretty much every day of spring break, so check back often. Python 3.6+
+Enhanced loot table randomizer for Minecraft based on SethBling/Fasguy's original script. "enhanced" only because I started out with a much greater project scope I've since reassesed. Might add a GUI if I feel like it. Python 3.6+
+
+# run
+`pip install sqlite3
+python __main__.py`
