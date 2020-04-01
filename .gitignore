@@ -1,7 +1,8 @@
 # Minecraft loot tables
 *.txt
-mc_eltr/sql/*.db
-mc_eltr/sql/sqlite3.exe
+ignore/
+mc_eltr/data/*.db
+mc_eltr/data/sqlite3.exe
 mc_eltr/output/
 
 # Byte-compiled / optimized / DLL files

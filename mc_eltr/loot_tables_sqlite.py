@@ -3,7 +3,6 @@ import sys
 import zipfile
 from pathlib import Path
 import json
-from tabulate import tabulate
 import io
 import sqlite3
 
@@ -17,21 +16,18 @@ class LootTables:
         self.obt_data = obtainment_data
         # set information about special blocks
         self.s_blocks = self.obt_data["special_blocks"]
+        # jar path
+        self.jar_path = jar_path
         # load settings for which loot tables to randomize
         randomize_loot = settings["randomize_loot"]
+        # output folder
+        self.output_folder = Path(settings["output_folder"])
 
         # open the .jar file
-        try:
-            jar = zipfile.ZipFile(jar_path)
-        except FileNotFoundError:
-            print("Could not find the minecraft .jar file " + str(jar_path))
-            exit()
+        # TODO: validate the .jar file in randomize
+        jar = zipfile.ZipFile(self.jar_path)
 
-        # delete old db
-        if os.path.exists("sql/loot_tables.db"):
-            os.remove("sql/loot_tables.db")
-
-        self.conn = sqlite3.connect("sql/loot_tables.db")
+        self.conn = sqlite3.connect(":memory:")
         # return nested lists instead of lists of tuples
         self.conn.row_factory = lambda cursor, row: row[0]
 
@@ -65,7 +61,7 @@ class LootTables:
                 FOREIGN KEY (block) REFERENCES blocks(block),
                 FOREIGN KEY (loot) REFERENCES block(block)
             );
-        """
+            """
         )
 
         # convert the loot_tables subfolders into full paths
@@ -87,8 +83,11 @@ class LootTables:
         # write the loot tables and recipes
         for file_path in jar.namelist():
             if file_path.startswith(loot_tables_subfolders):
-                # short name e.g. "dirt"
+                # block is the short name e.g. "dirt"
                 block = Path(file_path).stem
+                # check if this block is in the sheep folder
+                if Path(file_path).parent.name == "sheep":
+                    block = "sheep_" + block
                 # open file contents as json
                 loot_table = json.load(jar.open(file_path))
                 # type of block (block, entity, fishing, gift)
@@ -151,7 +150,7 @@ class LootTables:
 
     def scan_loot_table(self, block, loot_table):
         # there are a lot of conditions that affect what a block/entity drops
-        # as long as it does pertain to any of the critical items
+        # as long as it does not pertain to any of the critical items
         # i.e. obsidian, flint and steel, or eyes of ender
         # 100% accurate information is not necessary
         sns = self.sns
@@ -186,11 +185,10 @@ class LootTables:
         if recipe["type"] == "minecraft:crafting_shaped":
             item = sns(recipe["result"]["item"])
             for i in recipe["key"]:
-                for j in i:
-                    if "item" in j:
-                        recipe_values.append((item, sns(j["item"])))
-                    elif "tag" in j:
-                        recipe_values.append((item, sns(j["tag"])))
+                if "item" in recipe["key"][i]:
+                        recipe_values.append((item, sns(recipe["key"][i]["item"])))
+                elif "tag" in recipe["key"][i]:
+                        recipe_values.append((item, sns(recipe["key"][i]["tag"])))
 
         elif recipe["type"] == "minecraft:crafting_shapeless":
             item = sns(recipe["result"]["item"])
@@ -211,4 +209,91 @@ class LootTables:
         self.conn.executemany(
             "INSERT INTO recipes(item,needs) VALUES (?,?)", recipe_values
         )
+
+    def write_to_datapack(self, dp_name, dp_description, dp_reset_msg, dp_filename):
+        # buffer the datapack in memory before writing it to the disk
+        buffer = io.BytesIO()
+        datapack = zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED)
+
+        # change output formatting
+        self.conn.row_factory = lambda cursor, row: [row[0], row[1]]
+
+        # get a list of destination filenames to write to and source filenames to write from
+        filenames = self.conn.execute(
+            """
+            SELECT src.fname, dest.fname
+            FROM assigned
+            INNER JOIN blocks AS src
+            ON assigned.loot = src.block
+            INNER JOIN blocks AS dest
+            ON assigned.block = dest.block
+            """
+        ).fetchall()
+
+        self.conn.row_factory = lambda cursor, row: row[0]
+
+        # open the jar
+        jar = zipfile.ZipFile(self.jar_path)
+
+        # copy the contents of every source file in the .jar to its destination file in the datapack
+        for src_dest in filenames:
+            src, dest = src_dest
+            datapack.writestr(dest, jar.open(src).read())
+
+        jar.close()
+
+        # add metadata
+        datapack.writestr(
+            "pack.mcmeta",
+            json.dumps({"pack": {"pack_format": 1, "description": dp_description}}, indent=4),
+        )
+
+        datapack.writestr(
+            "data/minecraft/tags/functions/load.json",
+            json.dumps({"values": [f"{dp_name}:reset"]}),
+        )
+
+        datapack.writestr(
+            f"data/{dp_name}/functions/reset.mcfunction", dp_reset_msg,
+        )
+
+        # close the datapack
+        datapack.close()
+
+        # write the datapack to a file on the disk
+        datapack_file = open((self.output_folder / dp_filename), "wb")
+        datapack_file.write(buffer.getvalue())
+        datapack_file.close()
+
+    def write_cheatsheet(self, fname):
+        #change output formatting
+        self.conn.row_factory = lambda cursor, row: [row[0], row[1]]
+
+        # retrieve the assigned table
+        assigned = self.conn.execute(
+            """
+            SELECT block, loot
+            FROM assigned 
+            """
+        ).fetchall()
+
+        self.conn.row_factory = lambda cursor, row: row[0]
+
+        # determine the longest name of a block for formatting
+        longest_name = 0
+
+        for row in assigned:
+            for i in range(2):
+                row[i].replace("_", " ")
+            block, loot = row
+            l = len(block)
+            if l > longest_name:
+                longest_name = l
+        
+        # width of cheat sheet columns
+        width = longest_name + 2
+        with open((self.output_folder / fname), 'w') as cheatsheet:
+            for row in assigned:
+                cheatsheet.write("".join(word.ljust(width) for word in row) + "\n")
+
 

@@ -11,5 +11,5 @@
         "gameplay/cat_morning_gift.json": "true"
     },
     "randomize_recipes": false,
-    "entities_drop_key_items": false
+    "cheatsheet": true
 }
