@@ -1,9 +1,10 @@
 # Minecraft loot tables
 *.txt
 ignore/
-mc_eltr/data/*.db
-mc_eltr/data/sqlite3.exe
-mc_eltr/output/
+data/*.db
+data/sqlite3.exe
+output/
+pytest.ini
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
